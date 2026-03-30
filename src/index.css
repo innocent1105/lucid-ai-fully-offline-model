@@ -62,3 +62,27 @@
   scrollbar-width: thin;
   scrollbar-color: #888 #f1f1f1;
 }
+
+
+
+.glowing-container {
+  /* Initial Styles */
+  /* border-radius: 12px; */
+  /* background: #1a1a1a;  */
+  /* padding: 20px; */
+  
+  /* Apply the animation */
+  animation: glow-move 3s infinite alternate;
+}
+
+@keyframes glow-move {
+  0% {
+    box-shadow: 0 0 5px rgba(59, 130, 246, 0.2), 0 0 70px rgba(59, 130, 246, 0.2);
+  }
+  50% {
+    box-shadow: 0 0 20px rgba(59, 130, 246, 0.4), 0 0 180px rgba(139, 92, 246, 0.4);
+  }
+  100% {
+    box-shadow: 0 0 5px rgba(59, 130, 246, 0.2), 0 0 70px rgba(59, 130, 246, 0.2);
+  }
+}

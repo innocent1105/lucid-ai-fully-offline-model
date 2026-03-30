@@ -4,7 +4,7 @@ import {
   TextStreamer,
   InterruptableStoppingCriteria,
 } from "@huggingface/transformers";
-
+import { StoppingCriteria } from "@huggingface/transformers";
 /**
  * Helper function to perform feature detection for WebGPU
  */
@@ -27,6 +27,11 @@ async function check() {
 /**
  * This class uses the Singleton pattern to enable lazy-loading of the pipeline
  */
+
+const adapter = await navigator.gpu.requestAdapter();
+const canDoF16 = adapter.features.has("shader-f16");
+const dtype = canDoF16 ? "q4f16" : "q4";
+
 class TextGenerationPipeline {
   static model_id = "HuggingFaceTB/SmolLM2-1.7B-Instruct";
 
@@ -36,12 +41,23 @@ class TextGenerationPipeline {
     });
 
     this.model ??= AutoModelForCausalLM.from_pretrained(this.model_id, {
-      dtype: "q4f16",
+      dtype: dtype,
       device: "webgpu",
       progress_callback,
     });
 
     return Promise.all([this.tokenizer, this.model]);
+  }
+}
+
+class CustomStopChild extends StoppingCriteria {
+  _call(input_ids, scores) {
+    const lastToken = input_ids[input_ids.length - 1];
+    // Example: Stop if the token is a specific ID (e.g., a period or EoS)
+    if (lastToken === 13) { // 13 is often a newline or specific punctuation
+        return true; // This stops generation
+    }
+    return false;
   }
 }
 
@@ -156,7 +172,10 @@ self.addEventListener("message", async (e) => {
 
     case "interrupt":
       stopping_criteria.interrupt();
+      past_key_values_cache = null;
+      stopping_criteria.reset();
       break;
+
 
     case "reset":
       past_key_values_cache = null;

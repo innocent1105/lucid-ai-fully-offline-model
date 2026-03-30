@@ -43,6 +43,24 @@ function App() {
     db.conversations.orderBy('timestamp').reverse().toArray()
   ) || [];
 
+
+
+useEffect(() => {
+  const initStorage = async () => {
+    // 1. Request Notification permission first
+    const permission = await Notification.requestPermission();
+    
+    if (permission === 'granted') {
+      // 2. Now request persistence
+      if (navigator.storage && navigator.storage.persist) {
+        const isPersisted = await navigator.storage.persist();
+        console.log(`Persisted storage granted: ${isPersisted}`);
+      }
+    }
+  };
+
+  initStorage();
+}, []);
   // --- Handlers ---
 
   const downloadFile = (file) => {
@@ -79,11 +97,20 @@ function App() {
     if (currentChatId === id) createNewChat();
   };
 
+  const smoothScrollToBottom = () => {
+    const chatContainer = document.getElementById('chat-box');
+    chatContainer.scrollTo({
+      top: chatContainer.scrollHeight,
+      behavior: 'smooth'
+    });
+  };
+
   const createNewChat = () => {
     setMessages([]);
     setCurrentChatId(null);
     setFiles([]);
     setActiveFileId(null);
+    smoothScrollToBottom();
     if (status !== "loading") setStatus("ready");
   };
 
@@ -133,6 +160,8 @@ function App() {
     setMessages(newMessages);
     setIsRunning(true);
     setInput("");
+
+    smoothScrollToBottom();
 
     if (!currentChatId) {
       const id = await db.conversations.add({
@@ -190,6 +219,8 @@ function App() {
   useEffect(() => {
     if (messages.length === 0 || messages.at(-1).role === "assistant") return;
     worker.current.postMessage({ type: "generate", data: messages });
+    smoothScrollToBottom();
+
   }, [messages]);
 
   // Sync files when generation completes
@@ -199,17 +230,24 @@ function App() {
 
   const activeFile = files.find(f => f.id === activeFileId);
 
+  
+
+
+
+
+
+  
   return (
     <div className="flex h-screen bg-[#0A0A0A] text-neutral-200 overflow-hidden font-sans">
       
       {/* SIDEBAR */}
-      <aside className="w-66 border-r border-neutral-800 flex flex-col p-4 bg-[#0F0F0F] shrink-0">
+      <aside className="w-[22%] border-r border-neutral-800 flex flex-col p-4 bg-[#0F0F0F] shrink-0">
         <div className=" flex w-full gap-2 justify-between ">
           <div className="flex items-center gap-2 mb-8 px-2 font-bold text-xl tracking-tighter text-white">
            Lucid AI
           </div>
-          <div class="top-controls">
-            <button onclick={() => window.location.reload()} class="btn-reload text-xs text-gray-400 "> Reload</button>
+          <div className="top-controls">
+            <button onclick={() => location.reload()} class="btn-reload text-xs text-gray-400 "> Reload</button>
           </div>
         
         </div>
@@ -233,7 +271,11 @@ function App() {
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, scale: 0.95 }}
                 key={chat.id} 
-                onClick={() => loadChat(chat.id)} 
+                onClick={() => {
+                  if(isRunning) return;
+                  worker.current.postMessage({ type: "interrupt" })
+                  loadChat(chat.id);
+                }} 
                 className={`group relative px-3 py-2.5 text-sm rounded-xl cursor-pointer truncate transition-all ${
                   currentChatId === chat.id ? 'bg-white/5 text-white border border-white/10' : 'text-neutral-500 hover:bg-white/5 hover:text-neutral-300'
                 }`}
@@ -253,7 +295,7 @@ function App() {
 
       {/* MAIN VIEWPORT */}
       <main className="flex-1 flex flex-col relative h-full items-center min-w-0">
-        <div ref={chatContainerRef} className="w-full flex-1 overflow-y-auto no-scrollbar p-6">
+        <div id="chat-box" ref={chatContainerRef} className="w-full flex-1 overflow-y-auto no-scrollbar p-6">
           <AnimatePresence>
             {messages.length === 0 && status !== "loading" && (
               <motion.div 
@@ -295,14 +337,14 @@ function App() {
 
         {/* INPUT AREA */}
         <div className="w-full max-w-3xl px-6 pb-8">
-          <div className="bg-[#141414] border border-white/5 rounded-[28px] p-4 shadow-2xl focus-within:border-white/10 transition-all">
+          <div className={`bg-[#141414]  border border-white/5 rounded-[28px] p-4 shadow-2xl focus-within:border-white/10 transition-all ${isRunning ? 'glowing-container border-0' : 'ring-0'}`}>
             <textarea
               ref={textareaRef}
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); onEnter(input); } }}
               placeholder="Ask Lucid anything..."
-              className="w-full bg-transparent border-none focus:ring-0 resize-none text-base placeholder-neutral-700 no-scrollbar"
+              className="w-full outline-none bg-transparent border-none focus:ring-0 resize-none text-base placeholder-neutral-700 no-scrollbar"
               rows={1}
             />
             <div className="flex items-center justify-between mt-4">
